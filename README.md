@@ -70,12 +70,12 @@ Save the plot as mnist_comparison.png in the working directory.
 
 
 
-File Structure
-
+**File Structure
+**
 AYLA.py: Main Python script for training and plotting.
 mnist_comparison.png: Output plot (generated after running the script).
 
-Notes
+**Notes**
 
 Model Performance: The current architecture (128-unit hidden layer) is relatively simple. For improved accuracy on MNIST, consider increasing the hidden layer size or adding more layers in the create_model() function.
 Numerical Stability: An ε = 0.0000001 is added to loss and gradient computations to prevent division by zero or numerical issues.
@@ -102,7 +102,7 @@ Commit changes (git commit -m 'Add your feature').
 Push to the branch (git push origin feature/your-feature).
 Open a pull request.
 
-License
+**License**
 This project is licensed under the MIT License. See the LICENSE file for details.
-Contact
-For questions or issues, please open an issue on the GitHub repository or contact your-email@example.com.
+**Contact**
+For questions or issues, please open an issue on the GitHub repository or contact benkeslaki@gmail.com.
