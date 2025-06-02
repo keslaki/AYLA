@@ -3,12 +3,20 @@ This repository contains a Python script (AYLA.py) for training and comparing tw
 Project Overview
 The AYLA.py script trains two identical neural networks on the MNIST dataset:
 
-Normal Method: Uses standard categorical cross-entropy loss and gradient descent (SGD).
-AYLA Method: Applies a custom modification to the loss and gradients based on the loss value:
-If |loss| > 1: loss = sign(loss) * (|loss| + ε)^N1, gradient = N1 * gradient * sign(gradient) * (|gradient| + ε)^(N1-1)
-If |loss| < 1: loss = sign(loss) * (|loss| + ε)^N2, gradient = N2 * gradient * sign(gradient) * (|gradient| + ε)^(N2-1)
-If |loss| = 1: No modification
+ 
+ 
+Implement a Neural Network with standard categorical cross-entropy loss and gradient descent (SGD) on the MNIST dataset using a new method called AYLA.
+AYLA introduces two tunable hyperparameters, N1 and N2, which modify the loss and gradient during training based on the magnitude of the loss.
+The update rules are defined as follows:
+If |loss| < 1:
+loss_ayla = sign(loss) * |loss|^N1
+gradient_ayla = N1 * gradient * (|gradient| + ε)^(N1-1)
+If |loss| > 1:
+loss_ayla = sign(loss) * |loss|^N2
+gradient_ayla = N2 * gradient* (|gradient| + ε)^(N2-1)
+If |loss| = 1, no changes are made to the loss or gradient.
 A small ε = 0.0000001 is added to avoid numerical instability.
+
 
 
 
