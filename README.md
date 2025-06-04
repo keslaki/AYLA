@@ -25,8 +25,8 @@ This project implements a neural network-based classification pipeline for the M
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/your-repo-name.git
-   cd your-repo-name
+   git clone https://github.com/keslaki/AYLA.git
+   cd AYLA
    ```
 
 2. Install the required dependencies:
@@ -39,14 +39,14 @@ This project implements a neural network-based classification pipeline for the M
    pip install tensorflow numpy matplotlib
    ```
 
-3. Ensure the `mnist_training.py` script is in the project directory.
+3. Ensure the `AYLA_MNIST.py` script is in the project directory.
 
 ## Usage
 
 1. **Run the Script**:
    Execute the script to train and evaluate models on the MNIST dataset:
    ```bash
-   python mnist_training.py
+   python AYLA_MNIST.py
    ```
 
 2. **Provide Inputs**:
@@ -56,7 +56,7 @@ This project implements a neural network-based classification pipeline for the M
      - `N2` value (e.g., `0.5`): Exponent for loss scaling when absolute loss < 1.
 
 3. **Configuration**:
-   - Modify hyperparameters in `mnist_training.py` if needed:
+   - Modify hyperparameters in `AYLA_MNIST.py` if needed:
      ```python
      BATCH_SIZE = 128  # Batch size for training
      epsilon = 1e-7    # Small constant to avoid numerical issues
@@ -91,4 +91,4 @@ This project implements a neural network-based classification pipeline for the M
      Enter number of epochs: 50
      Enter N1 value: 1.5
      Enter N2 value: 0.5
-     AY
+    
