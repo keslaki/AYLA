@@ -1,6 +1,5 @@
 import tensorflow as tf
 import numpy as np
-import matplotlib.pyplot as plt
 
 # Set seed for reproducibility
 seed = 42
@@ -25,20 +24,56 @@ y_train_cat = tf.keras.utils.to_categorical(y_train, 100)
 y_test_cat = tf.keras.utils.to_categorical(y_test, 100)
 
 # Model definition
+
+
 def create_model():
-    return tf.keras.Sequential([
-        tf.keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=(32, 32, 3)),
+    model = tf.keras.Sequential([
+        # Block 1
+        tf.keras.layers.Conv2D(32, (3, 3), padding='same', input_shape=(32, 32, 3)),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.ReLU(),
+        tf.keras.layers.Conv2D(32, (3, 3), padding='same'),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.ReLU(),
         tf.keras.layers.MaxPooling2D((2, 2)),
-        tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
+        tf.keras.layers.Dropout(0.25),
+        
+        # Block 2
+        tf.keras.layers.Conv2D(64, (3, 3), padding='same'),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.ReLU(),
+        tf.keras.layers.Conv2D(64, (3, 3), padding='same'),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.ReLU(),
         tf.keras.layers.MaxPooling2D((2, 2)),
-        tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
+        tf.keras.layers.Dropout(0.35),
+        
+        # Block 3
+        tf.keras.layers.Conv2D(128, (3, 3), padding='same'),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.ReLU(),
+        tf.keras.layers.Conv2D(128, (3, 3), padding='same'),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.ReLU(),
+        tf.keras.layers.MaxPooling2D((2, 2)),
+        tf.keras.layers.Dropout(0.35),
+        
+        # Dense layers
         tf.keras.layers.Flatten(),
-        tf.keras.layers.Dense(128, activation='relu'),
+        tf.keras.layers.Dense(512),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.ReLU(),
+        tf.keras.layers.Dropout(0.5),
         tf.keras.layers.Dense(100, activation='softmax')
     ])
+    return model
 
+
+
+# Define separate optimizers for each model
 loss_fn = tf.keras.losses.CategoricalCrossentropy()
-optimizer = tf.keras.optimizers.SGD()
+optimizer_modified = tf.keras.optimizers.SGD()
+optimizer_normal = tf.keras.optimizers.SGD()
 
 # Save initial weights once
 base_model = create_model()
@@ -114,13 +149,13 @@ def train_with_custom_modification(epochs=EPOCHS, batch_size=BATCH_SIZE, model=N
                 abs_g = tf.abs(g)
                 g_new = grad_scale * g_sign * tf.where(
                     tf.math.is_finite(abs_g),
-                    abs_g * ((abs_g + epsilon)  ** grad_exponent),
+                    abs_g * ((abs_g + epsilon) ** grad_exponent),
                     tf.zeros_like(abs_g)
                 )
                 new_grads.append(g_new)
             
             if all(g is not None for g in new_grads):
-                optimizer.apply_gradients(zip(new_grads, model.trainable_variables))
+                optimizer_modified.apply_gradients(zip(new_grads, model.trainable_variables))
             
             # Compute accuracy for the batch
             acc = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(y_batch, axis=1), tf.argmax(preds, axis=1)), tf.float32))
@@ -140,65 +175,60 @@ def train_with_custom_modification(epochs=EPOCHS, batch_size=BATCH_SIZE, model=N
         history['grad_norm'].append(np.mean(epoch_grad_norm))
     return history
 
+# Simplified training loop using model.fit
 def train_normal(epochs=EPOCHS, batch_size=BATCH_SIZE, model=None):
-    dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train_cat))
-    dataset = dataset.shuffle(buffer_size=1024).batch(batch_size)
-    history = {
-        'loss': [], 'val_loss': [], 'accuracy': [], 'val_accuracy': [], 'grad_norm': []
+    # Compile the model with its own optimizer
+    model.compile(optimizer=optimizer_normal,
+                  loss='categorical_crossentropy',
+                  metrics=['accuracy'])
+    
+    # Train the model
+    history = model.fit(x_train, y_train_cat,
+                        batch_size=batch_size,
+                        epochs=epochs,
+                        validation_data=(x_test, y_test_cat),
+                        verbose=1)
+    
+    # Convert history to match the custom training format
+    history_dict = {
+        'loss': history.history['loss'],
+        'val_loss': history.history['val_loss'],
+        'accuracy': history.history['accuracy'],
+        'val_accuracy': history.history['val_accuracy'],
     }
-    for epoch in range(epochs):
-        epoch_loss = []
-        epoch_grad_norm = []
-        epoch_acc = []
-        for step, (x_batch, y_batch) in enumerate(dataset):
-            with tf.GradientTape() as tape:
-                preds = model(x_batch, training=True)
-                loss_value = loss_fn(y_batch, preds)
-            grads = tape.gradient(loss_value, model.trainable_variables)
-            grad_norm = compute_gradient_norm(grads)
-            epoch_grad_norm.append(grad_norm)
-            optimizer.apply_gradients(zip(grads, model.trainable_variables))
-            epoch_loss.append(tf.reduce_mean(loss_value).numpy())
-            acc = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(y_batch, axis=1), tf.argmax(preds, axis=1)), tf.float32))
-            epoch_acc.append(acc.numpy())
-        
-        # Validation
-        val_preds = model(x_test, training=False)
-        val_loss = loss_fn(y_test_cat, val_preds).numpy()
-        val_acc = np.mean(np.argmax(val_preds.numpy(), axis=1) == y_test.flatten())
-        print(f"Normal - Epoch {epoch+1}: Loss={np.mean(epoch_loss):.4f}, Val Loss={val_loss:.4f}, Val Acc={val_acc:.4f}, Grad Norm={np.mean(epoch_grad_norm):.4f}")
-        # Save history
-        history['loss'].append(np.mean(epoch_loss))
-        history['val_loss'].append(val_loss)
-        history['accuracy'].append(np.mean(epoch_acc))
-        history['val_accuracy'].append(val_acc)
-        history['grad_norm'].append(np.mean(epoch_grad_norm))
-    return history
+    
+    return history_dict
 
 # Run training
 history_mod = train_with_custom_modification(epochs=EPOCHS, model=model_modified, N1=N1, N2=N2)
 history_norm = train_normal(epochs=EPOCHS, model=model_normal)
 
 # Plot comparison
-plt.figure(figsize=(12, 5))
+plt.figure(figsize=(6, 4))
+
 # Accuracy plot
-plt.subplot(1, 2, 1)
-plt.plot(range(1, EPOCHS + 1), history_norm['accuracy'], label='Normal Train')
-plt.plot(range(1, EPOCHS + 1), history_norm['val_accuracy'], label='Normal Val')
-plt.plot(range(1, EPOCHS + 1), history_mod['accuracy'], label='AYLA Train', linestyle='--')
-plt.plot(range(1, EPOCHS + 1), history_mod['val_accuracy'], label='AYLA Val', linestyle='--')
+#plt.subplot(1, 2, 1)
+plt.plot(range(1, EPOCHS + 1), history_norm['accuracy'], label='Normal Train', color='black', linestyle='-')
+plt.plot(range(1, EPOCHS + 1), history_norm['val_accuracy'], label='Normal Val', color='black', linestyle='--')
+plt.plot(range(1, EPOCHS + 1), history_mod['accuracy'], label='AYLA Train', color='blue', linestyle='-')
+plt.plot(range(1, EPOCHS + 1), history_mod['val_accuracy'], label='AYLA Val', color='blue', linestyle='--')
 plt.xlabel('Epoch')
 plt.ylabel('Accuracy')
 plt.title(f'Accuracy (N1={N1}, N2={N2})')
 plt.legend()
 plt.grid(True)
+plt.tight_layout()
+plt.savefig('SM1_acc.png', dpi=300)
+plt.show()
 
+
+plt.figure(figsize=(6, 4))
 # Loss plot
-plt.subplot(1, 2, 2)
-plt.plot(range(1, EPOCHS + 1), history_norm['loss'], label='Normal Loss')
-plt.plot(range(1, EPOCHS + 1), history_norm['val_loss'], label='Normal Val Loss')
-plt.plot(range(1, EPOCHS + 1), history_mod['loss'], label='AYLA Loss', linestyle='--')
-plt.plot(range(1, EPOCHS + 1), history_mod['val_loss'], label='AYLA Val Loss', linestyle='--')
+#plt.subplot(1, 2, 2)
+plt.plot(range(1, EPOCHS + 1), history_norm['loss'], label='Normal Loss', color='black', linestyle='-')
+plt.plot(range(1, EPOCHS + 1), history_norm['val_loss'], label='Normal Val Loss', color='black', linestyle='--')
+plt.plot(range(1, EPOCHS + 1), history_mod['loss'], label='AYLA Loss', color='blue', linestyle='-')
+plt.plot(range(1, EPOCHS + 1), history_mod['val_loss'], label='AYLA Val Loss', color='blue', linestyle='--')
 plt.xlabel('Epoch')
 plt.ylabel('Loss')
 plt.title(f'Loss (N1={N1}, N2={N2})')
@@ -206,4 +236,5 @@ plt.legend()
 plt.grid(True)
 
 plt.tight_layout()
-plt.savefig('cifar100_comparison.png')
+plt.savefig('SM1_loss.png', dpi=300)
+plt.show()
