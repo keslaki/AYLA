@@ -106,3 +106,24 @@ history = sgd(learning_rate, num_epochs, initial_x, N1, N2)
 plot_paths(history)
 plot_loss_and_steps(history, N1, N2)
 
+
+
+
+# Plot learning_rate * gradients (step sizes)
+def plot_step_sizes(history):
+    fig, ax = plt.subplots()
+    for spine in ax.spines.values():
+        spine.set_linewidth(1)
+
+    ax.plot(history['step_sgd'], label='SGD Step Size', color='black', linewidth=1.5)
+    ax.plot(history['step_ayla'], label='AYLA Step Size', color='blue', linewidth=1.5)
+
+    plt.xlabel('Epoch', fontsize=12)
+    plt.ylabel('Step Size (learning_rate * gradient)', fontsize=10)
+    plt.legend(loc='upper right', fontsize=10, frameon=True, edgecolor='black')
+    plt.grid(True, linestyle='dotted', color='gray')
+    plt.tight_layout()
+    plt.savefig('ayla_sgd_step_sizes.png', dpi=1000, bbox_inches='tight')
+    plt.show()
+
+plot_step_sizes(history)
