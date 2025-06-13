@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # ------------------ Hyperparameters ------------------- #
-N1, N2 = 1.8, 0.8
+N1, N2 = 1.5, .9
 numerbss, randomm = 100, 0.2
 input_size, hidden_size, output_size = 1, 128, 1
 learning_rate, epochs = 0.005, 400
@@ -108,10 +108,10 @@ _, _, y_pred_adam = forward(X, *model_adam)
 _, _, y_pred_ayla = forward(X, *model_ayla)
 
 # ------------------ Final Plotting ------------------- #
-plt.figure(figsize=(14, 6))
+#plt.figure(figsize=(8, 6))
 
 # Plot 1: Curve Fitting
-plt.subplot(1, 2, 1)
+
 plt.scatter(X, y, color='black', alpha=0.5, label='Data')
 plt.plot(X, y_pred_adam, 'r-', label='Adam')
 plt.plot(X, y_pred_ayla, 'b-', label='AYLA')
@@ -119,9 +119,13 @@ plt.plot(X, true_func(X), 'k--', label='True function')
 plt.title("Curve Fitting")
 plt.legend()
 plt.grid(True, linestyle='dotted')
+plt.tight_layout()
+plt.savefig("AYLA_vs_ADAM1.png", dpi=300)
+plt.show()
+
 
 # Plot 2: Loss Curves
-plt.subplot(1, 2, 2)
+ 
 plt.plot(losses_adam, 'r-', label='Adam Loss')
 plt.plot(losses_ayla, 'b-', label='AYLA Loss')
 plt.title("Loss over Epochs")
@@ -129,7 +133,7 @@ plt.legend()
 plt.grid(True, linestyle='dotted')
 
 plt.tight_layout()
-plt.savefig("AYLA_vs_ADAM.png", dpi=300)
+plt.savefig("AYLA_vs_ADAM2.png", dpi=300)
 plt.show()
 
 print(f"Final Adam Loss: {losses_adam[-1]:.5f}")
