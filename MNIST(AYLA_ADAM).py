@@ -28,8 +28,10 @@ def build_model():
     ])
     return model
 
+
 model_adam = build_model()
-model_ayla = build_model()
+model_ayla = tf.keras.models.clone_model(model_adam)
+model_ayla.set_weights(model_adam.get_weights())
 
 # Optimizers
 optimizer_adam = tf.keras.optimizers.Adam(learning_rate=lr)
