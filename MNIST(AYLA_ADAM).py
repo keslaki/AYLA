@@ -95,23 +95,21 @@ for epoch in range(epochs):
     print(f"Epoch {epoch+1}: Adam [TrainAcc {train_acc_adam:.4f}, TestAcc {test_acc_adam:.4f}] | "
           f"AYLA [TrainAcc {train_acc_ayla:.4f}, TestAcc {test_acc_ayla:.4f}]")
 
+
 # ------------------- Plotting ------------------- #
-plt.figure(figsize=(12,5))
-plt.subplot(1,2,1)
-plt.plot(history['adam_train_loss'], label='Adam Train')
-plt.plot(history['adam_test_loss'], label='Adam Test')
-plt.plot(history['ayla_train_loss'], label='AYLA Train')
-plt.plot(history['ayla_test_loss'], label='AYLA Test')
+plt.plot(history['adam_train_loss'], label='Adam Train', color='black', linestyle='-')
+plt.plot(history['adam_test_loss'], label='Adam Test', color='black', linestyle='--')
+plt.plot(history['ayla_train_loss'], label='AYLA Train', color='blue', linestyle='-')
+plt.plot(history['ayla_test_loss'], label='AYLA Test', color='blue', linestyle='--')
 plt.title("Loss")
 plt.legend()
 plt.savefig("Loss.png", dpi=300)
 plt.show()
 
-plt.subplot(1,2,2)
-plt.plot(history['adam_train_acc'], label='Adam Train')
-plt.plot(history['adam_test_acc'], label='Adam Test')
-plt.plot(history['ayla_train_acc'], label='AYLA Train')
-plt.plot(history['ayla_test_acc'], label='AYLA Test')
+plt.plot(history['adam_train_acc'], label='Adam Train', color='black', linestyle='-')
+plt.plot(history['adam_test_acc'], label='Adam Test', color='black', linestyle='--')
+plt.plot(history['ayla_train_acc'], label='AYLA Train', color='blue', linestyle='-')
+plt.plot(history['ayla_test_acc'], label='AYLA Test', color='blue', linestyle='--')
 plt.title("Accuracy")
 plt.legend()
 plt.savefig("Accu.png", dpi=300)
