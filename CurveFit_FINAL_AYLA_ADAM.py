@@ -13,16 +13,20 @@ X_input = X_ayla
 y_input = y_true
 
 # Hyperparameters
-epochs = 200
-lr = 0.01
+
 beta1, beta2 = 0.9, 0.999
 eps = 1e-8
 
-N1, N2 = 1, .15
+
+# User inputs
+lr = float(input("Enter learning rate (e.g. 0.001): "))
+N1 = float(input("Enter N1 for AYLA (e.g. 1.4): "))
+N2 =  float(input("Enter N2 for AYLA (e.g. 1.4): "))
+epochs = int(input("Enter EPOCH (e.g. 100): "))
 
 # Network architecture
 input_dim = 1
-hidden_dim = 100
+hidden_dim = 128
 output_dim = 1
 
 # ---------- Initialize parameters ----------
@@ -127,7 +131,7 @@ for epoch in range(1, epochs+1):
         param_ayla -= lr * m_hat_ayla / (np.sqrt(v_hat_ayla) + eps)
 
 # ---------- Plot Loss ----------
-plt.figure(figsize=(10,6))
+plt.figure(figsize=(6,4))
 plt.plot(adam_losses, label='Standard ADAM', color='red')
 plt.plot(ayla_losses, label='AYLA-ADAM', color='blue')
 plt.xlabel("Epochs")
@@ -138,8 +142,8 @@ plt.grid()
 plt.show()
 
 # ---------- Plot Predictions ----------
-plt.figure(figsize=(10,6))
-plt.scatter(X_input, y_input, label='True Data', color='red', alpha=0.6)
+plt.figure(figsize=(6,4))
+plt.scatter(X_input, y_input, label='True Data', color='grey', alpha=0.6)
 
 X_grid = np.linspace(-1, 3, 200).reshape(-1,1)
 a1_grid_adam = np.tanh(X_grid @ W1_adam + b1_adam)
@@ -156,3 +160,7 @@ plt.legend()
 plt.title("Prediction Comparison")
 plt.grid()
 plt.show()
+
+
+
+round(ayla_losses[len(ayla_losses)-1], 2)   ,  round(adam_losses[len(adam_losses) - 1],2)
