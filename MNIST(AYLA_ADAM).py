@@ -103,6 +103,8 @@ plt.plot(history['ayla_train_loss'], label='AYLA Train', color='blue', linestyle
 plt.plot(history['ayla_test_loss'], label='AYLA Test', color='blue', linestyle='--')
 plt.title("Loss")
 plt.legend()
+plt.grid(True)
+plt.tight_layout()
 plt.savefig("Loss.png", dpi=300)
 plt.show()
 
@@ -112,5 +114,7 @@ plt.plot(history['ayla_train_acc'], label='AYLA Train', color='blue', linestyle=
 plt.plot(history['ayla_test_acc'], label='AYLA Test', color='blue', linestyle='--')
 plt.title("Accuracy")
 plt.legend()
+plt.grid(True)
+plt.tight_layout()
 plt.savefig("Accu.png", dpi=300)
 plt.show()
