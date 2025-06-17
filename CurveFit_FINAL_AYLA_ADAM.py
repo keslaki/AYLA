@@ -133,12 +133,15 @@ for epoch in range(1, epochs+1):
 # ---------- Plot Loss ----------
 plt.figure(figsize=(6,4))
 plt.plot(adam_losses, label='Standard ADAM', color='red')
-plt.plot(ayla_losses, label='AYLA-ADAM', color='blue')
+plt.plot(ayla_losses, label='AYLA', color='blue')
 plt.xlabel("Epochs")
 plt.ylabel("MSE Loss")
 plt.legend()
 plt.title("Comparison of ADAM vs AYLA")
 plt.grid()
+plt.savefig("AYLA_vs_ADAMLOSS.png", dpi=300)
+
+
 plt.show()
 
 # ---------- Plot Predictions ----------
@@ -152,13 +155,16 @@ y_pred_grid_adam = a1_grid_adam @ W2_adam + b2_adam
 a1_grid_ayla = np.tanh(X_grid @ W1_ayla + b1_ayla)
 y_pred_grid_ayla = a1_grid_ayla @ W2_ayla + b2_ayla
 
-plt.plot(X_grid, y_pred_grid_adam, label='ADAM Prediction', color='red')
-plt.plot(X_grid, y_pred_grid_ayla, label='AYLA Prediction', color='blue')
+plt.plot(X_grid, y_pred_grid_adam, label='ADAM', color='red')
+plt.plot(X_grid, y_pred_grid_ayla, label='AYLA', color='blue')
 plt.xlabel("X")
 plt.ylabel("y")
 plt.legend()
 plt.title("Prediction Comparison")
 plt.grid()
+
+plt.savefig("AYLA_vs_ADAMFIT.png", dpi=300)
+
 plt.show()
 
 
