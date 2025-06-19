@@ -9,22 +9,23 @@ lr = float(input("Enter learning rate (e.g. 0.001): "))
 N1 = float(input("Enter N1 for AYLA (e.g. 1.4): "))
 N2 = float(input("Enter N2 for AYLA (e.g. 1.0): "))
 epochs = int(input("Enter EPOCH (e.g. 100): "))
-batch_size = 128
+batch_size = 1024
 
 # ------------------- Load CIFAR-100 ------------------- #
-(x_train, y_train), (x_test, y_test) = cifar100.load_data(label_mode='fine')
-x_train, x_test = x_train / 255.0, x_test / 255.0
+(x_train, y_train), (x_test, y_test) = cifar100.load_data()
+x_train = x_train.astype('float32') / 255.0
+x_test = x_test.astype('float32') / 255.0
 y_train, y_test = to_categorical(y_train, 100), to_categorical(y_test, 100)
 
 # ------------------- CNN Model ------------------- #
 def build_model():
     model = tf.keras.Sequential([
-        tf.keras.layers.Conv2D(32, (3, 3), activation='relu', padding='same', input_shape=(32, 32, 3)),
+        tf.keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=(32, 32, 3)),
         tf.keras.layers.MaxPooling2D((2, 2)),
-        tf.keras.layers.Conv2D(64, (3, 3), activation='relu', padding='same'),
+        tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
         tf.keras.layers.MaxPooling2D((2, 2)),
         tf.keras.layers.Flatten(),
-        tf.keras.layers.Dense(256, activation='relu'),
+        tf.keras.layers.Dense(32, activation='relu'),
         tf.keras.layers.Dense(100, activation='softmax')
     ])
     return model
@@ -52,44 +53,41 @@ history = {
 
 # ------------------- Training Loop ------------------- #
 for epoch in range(epochs):
-    # Training phase
     adam_train_loss, ayla_train_loss = 0.0, 0.0
     adam_train_acc, ayla_train_acc = 0.0, 0.0
     num_batches = 0
+    loss_adam_np_list = []
 
     for xb, yb in train_ds:
         num_batches += 1
-        # Adam forward and backward pass
+
         with tf.GradientTape() as tape:
             y_pred_adam = model_adam(xb, training=True)
             loss_adam = loss_fn(yb, y_pred_adam)
         grads_adam = tape.gradient(loss_adam, model_adam.trainable_variables)
         optimizer_adam.apply_gradients(zip(grads_adam, model_adam.trainable_variables))
 
-        # AYLA forward pass and scaling
         with tf.GradientTape() as tape:
             y_pred_ayla = model_ayla(xb, training=True)
             loss_ayla = loss_fn(yb, y_pred_ayla)
         grads_ayla = tape.gradient(loss_ayla, model_ayla.trainable_variables)
 
-        # Use Adam loss for condition
         loss_adam_np = loss_adam.numpy()
+        loss_adam_np_list.append(loss_adam_np)
+
         condition = tf.abs(loss_adam_np) > 1
         condition2 = tf.abs(loss_adam_np) < 1
         nnp = tf.where(condition, N2, tf.where(condition2, N1, 1))
         factor = nnp * tf.abs(loss_adam_np) ** (nnp - 1)
 
-        # Scale gradients for AYLA
         grads_scaled = [g * factor for g in grads_ayla]
         optimizer_ayla.apply_gradients(zip(grads_scaled, model_ayla.trainable_variables))
 
-        # Accumulate metrics
-        adam_train_loss += loss_adam.numpy()
+        adam_train_loss += loss_adam_np
         ayla_train_loss += loss_ayla.numpy()
         adam_train_acc += tf.reduce_mean(tf.cast(tf.equal(tf.argmax(y_pred_adam, axis=1), tf.argmax(yb, axis=1)), tf.float32)).numpy()
         ayla_train_acc += tf.reduce_mean(tf.cast(tf.equal(tf.argmax(y_pred_ayla, axis=1), tf.argmax(yb, axis=1)), tf.float32)).numpy()
 
-    # Average metrics over batches
     adam_train_loss /= num_batches
     ayla_train_loss /= num_batches
     adam_train_acc /= num_batches
@@ -124,7 +122,7 @@ for epoch in range(epochs):
     history['adam_test_acc'].append(adam_test_acc)
     history['ayla_test_acc'].append(ayla_test_acc)
 
-    # Compute gradient norms for printing
+    # Gradient norms
     with tf.GradientTape() as tape:
         y_pred_adam = model_adam(xb, training=True)
         loss_adam = loss_fn(yb, y_pred_adam)
@@ -138,12 +136,13 @@ for epoch in range(epochs):
     grad_norm_ayla = tf.reduce_mean([tf.norm(g) for g in grads_ayla]).numpy()
 
     # Verbose output
-    print(f"Epoch {epoch + 1}: "
-          f"Adam [Train Loss: {adam_train_loss:.4f}, Test Loss: {adam_test_loss:.4f}, "
-          f"Train Acc: {adam_train_acc:.4f}, Test Acc: {adam_test_acc:.4f}, Grad Norm: {grad_norm_adam:.4f}] | "
-          f"AYLA [Train Loss: {ayla_train_loss:.4f}, Test Loss: {ayla_test_loss:.4f}, "
+    print(f"\nEpoch {epoch + 1}")
+    print(f"Adam [Train Loss: {adam_train_loss:.4f}, Test Loss: {adam_test_loss:.4f}, "
+          f"Train Acc: {adam_train_acc:.4f}, Test Acc: {adam_test_acc:.4f}, Grad Norm: {grad_norm_adam:.4f}]")
+    print(f"AYLA [Train Loss: {ayla_train_loss:.4f}, Test Loss: {ayla_test_loss:.4f}, "
           f"Train Acc: {ayla_train_acc:.4f}, Test Acc: {ayla_test_acc:.4f}, Grad Norm: {grad_norm_ayla:.4f}, "
           f"Factor: {factor.numpy():.4f}]")
+    print("loss used for the condition", loss_adam_np)
 
 # ------------------- Plotting ------------------- #
 plt.figure(figsize=(10, 5))
