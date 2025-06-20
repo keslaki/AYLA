@@ -1,174 +1,265 @@
 import numpy as np
-import tensorflow as tf
 from tensorflow.keras.datasets import mnist
-from tensorflow.keras.utils import to_categorical
 import matplotlib.pyplot as plt
 
-# ------------------- Hyperparameters ------------------- #
-lr = float(input("Enter learning rate (e.g. 0.001): "))
-N1 = float(input("Enter N1 for AYLA (e.g. 1.4): "))
-N2 = float(input("Enter N2 for AYLA (e.g. 1.0): "))
-epochs = int(input("Enter EPOCH (e.g. 100): "))
-batch_size = 256
-
-# ------------------- Load MNIST ------------------- #
+# Load MNIST data
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
-x_train = x_train.reshape(-1, 28, 28, 1).astype('float32') / 255.0
-x_test = x_test.reshape(-1, 28, 28, 1).astype('float32') / 255.0
-y_train, y_test = to_categorical(y_train, 10), to_categorical(y_test, 10)
 
-# ------------------- Neural Network Model ------------------- #
-def build_model():
-    model = tf.keras.Sequential([
-        tf.keras.layers.Flatten(input_shape=(28, 28, 1)),
-        tf.keras.layers.Dense(128, activation='relu'),
-        tf.keras.layers.Dense(10, activation='softmax')
-    ])
-    return model
+# Preprocess inputs
+x_train = x_train.reshape(-1, 28*28) / 255.0
+x_test = x_test.reshape(-1, 28*28) / 255.0
 
-model_adam = build_model()
-model_ayla = tf.keras.models.clone_model(model_adam)
-model_ayla.set_weights(model_adam.get_weights())
+def one_hot(labels, num_classes=10):
+    return np.eye(num_classes)[labels]
 
-# Optimizers
-optimizer_adam = tf.keras.optimizers.Adam(learning_rate=lr)
-optimizer_ayla = tf.keras.optimizers.Adam(learning_rate=lr)
-loss_fn = tf.keras.losses.CategoricalCrossentropy()
+y_train_oh = one_hot(y_train)
+y_test_oh = one_hot(y_test)
 
-# Training datasets
-train_ds = tf.data.Dataset.from_tensor_slices((x_train, y_train)).shuffle(10000).batch(batch_size)
-test_ds = tf.data.Dataset.from_tensor_slices((x_test, y_test)).batch(batch_size)
+# Network architecture
+input_size = 784
+hidden_size = 128
+output_size = 10
 
-# History for plotting
+
+# Standard manual initialization
+W1 = np.random.randn(input_size, hidden_size) * 0.01
+b1 = np.zeros((1, hidden_size))
+W2 = np.random.randn(hidden_size, output_size) * 0.01
+b2 = np.zeros((1, output_size))
+
+
+# Create exact copy for AYLA network
+W1_AYLA = W1.copy()
+b1_AYLA = b1.copy()
+W2_AYLA = W2.copy()
+b2_AYLA = b2.copy()
+
+# Activation functions
+def relu(x):
+    return np.maximum(0, x)
+
+def relu_derivative(x):
+    return (x > 0).astype(float)
+
+def softmax(x):
+    exp_x = np.exp(x - np.max(x, axis=1, keepdims=True))
+    return exp_x / np.sum(exp_x, axis=1, keepdims=True)
+
+def cross_entropy_loss(y_pred, y_true):
+    m = y_pred.shape[0]
+    clipped_preds = np.clip(y_pred, 1e-12, 1.0)
+    return -np.sum(y_true * np.log(clipped_preds)) / m
+
+def accuracy(y_pred, y_true):
+    preds = np.argmax(y_pred, axis=1)
+    labels = np.argmax(y_true, axis=1)
+    return np.mean(preds == labels)
+
+# ADAM hyperparameters
+learning_rate = 0.01
+beta1 = 0.9
+beta2 = 0.999
+epsilon = 1e-8
+
+# Initialize ADAM moments for original network
+m_W1 = np.zeros_like(W1)
+v_W1 = np.zeros_like(W1)
+m_b1 = np.zeros_like(b1)
+v_b1 = np.zeros_like(b1)
+
+m_W2 = np.zeros_like(W2)
+v_W2 = np.zeros_like(W2)
+m_b2 = np.zeros_like(b2)
+v_b2 = np.zeros_like(b2)
+
+# Initialize ADAM moments for AYLA network
+m_W1_AYLA = np.zeros_like(W1_AYLA)
+v_W1_AYLA = np.zeros_like(W1_AYLA)
+m_b1_AYLA = np.zeros_like(b1_AYLA)
+v_b1_AYLA = np.zeros_like(b1_AYLA)
+
+m_W2_AYLA = np.zeros_like(W2_AYLA)
+v_W2_AYLA = np.zeros_like(W2_AYLA)
+m_b2_AYLA = np.zeros_like(b2_AYLA)
+v_b2_AYLA = np.zeros_like(b2_AYLA)
+
+# User inputs for N1, N2
+N1 = float(input("Enter N1 (e.g. 1.4): "))
+N2 = float(input("Enter N2 (e.g. 1.6): "))
+
+epochs = 50
+batch_size = 256
+num_batches = x_train.shape[0] // batch_size
+
+def adam_update(param, grad, m_param, v_param, t):
+    m_param = beta1 * m_param + (1 - beta1) * grad
+    v_param = beta2 * v_param + (1 - beta2) * (grad ** 2)
+    m_hat = m_param / (1 - beta1 ** t)
+    v_hat = v_param / (1 - beta2 ** t)
+    param_update = learning_rate * m_hat / (np.sqrt(v_hat) + epsilon)
+    param -= param_update
+    return param, m_param, v_param
+
+# Store metrics for plotting
 history = {
-    'adam_train_loss': [], 'adam_test_loss': [],
-    'ayla_train_loss': [], 'ayla_test_loss': [],
-    'adam_train_acc': [], 'adam_test_acc': [],
-    'ayla_train_acc': [], 'ayla_test_acc': []
+    "train_loss_orig": [], "train_acc_orig": [],
+    "test_loss_orig": [], "test_acc_orig": [],
+    "train_loss_AYLA": [], "train_acc_AYLA": [],
+    "test_loss_AYLA": [], "test_acc_AYLA": [],
 }
 
-# ------------------- Training Loop ------------------- #
 for epoch in range(epochs):
-    adam_train_loss, ayla_train_loss = 0.0, 0.0
-    adam_train_acc, ayla_train_acc = 0.0, 0.0
-    num_batches = 0
-    loss_adam_np_list = []
+    perm = np.random.permutation(x_train.shape[0])
+    x_train_shuffled = x_train[perm]
+    y_train_shuffled = y_train_oh[perm]
+    
+    epoch_loss_orig = 0
+    epoch_acc_orig = 0
+    epoch_loss_AYLA = 0
+    epoch_acc_AYLA = 0
+    
+    for i in range(num_batches):
+        start = i * batch_size
+        end = start + batch_size
+        X_batch = x_train_shuffled[start:end]
+        y_batch = y_train_shuffled[start:end]
+        m = batch_size
+        
+        # Forward original
+        z1 = np.dot(X_batch, W1) + b1
+        a1 = relu(z1)
+        z2 = np.dot(a1, W2) + b2
+        y_pred = softmax(z2)
+        loss = cross_entropy_loss(y_pred, y_batch)
+ 
+        acc = accuracy(y_pred, y_batch)
+        epoch_loss_orig += loss
+        epoch_acc_orig += acc
+        
+        # Backprop original
+        dz2 = (y_pred - y_batch) / m
+        dW2 = np.dot(a1.T, dz2)
+        db2 = np.sum(dz2, axis=0, keepdims=True)
+        da1 = np.dot(dz2, W2.T)
+        dz1 = da1 * relu_derivative(z1)
+        dW1 = np.dot(X_batch.T, dz1)
+        db1 = np.sum(dz1, axis=0, keepdims=True)
+        
+        # Forward AYLA
+        z1_AYLA = np.dot(X_batch, W1_AYLA) + b1_AYLA
+        a1_AYLA = relu(z1_AYLA)
+        z2_AYLA = np.dot(a1_AYLA, W2_AYLA) + b2_AYLA
+        y_pred_AYLA = softmax(z2_AYLA)
+        loss_AYLA = cross_entropy_loss(y_pred_AYLA, y_batch)
+        acc_AYLA = accuracy(y_pred_AYLA, y_batch)
+        epoch_loss_AYLA += loss_AYLA
+        epoch_acc_AYLA += acc_AYLA
+        
+        # Backprop AYLA with your condition applied
+        
+        # Condition and factor calculation based on original loss
+        condition = abs(loss) > 1
+        condition2 = abs(loss) < 1
+        
+        # Compute nnp scalar
+        if condition:
+            nnp = N2
+        elif condition2:
+            nnp = N1
+        else:
+            nnp = 1
+        
+        factor = nnp * (abs(loss_AYLA)) ** (nnp - 1)
+        
+        dz2_AYLA = factor * (y_pred_AYLA - y_batch) / m
+        
+        dW2_AYLA = np.dot(a1_AYLA.T, dz2_AYLA)
+        db2_AYLA = np.sum(dz2_AYLA, axis=0, keepdims=True)
+        da1_AYLA = np.dot(dz2_AYLA, W2_AYLA.T)
+        dz1_AYLA = da1_AYLA * relu_derivative(z1_AYLA)
+        dW1_AYLA = np.dot(X_batch.T, dz1_AYLA)
+        db1_AYLA = np.sum(dz1_AYLA, axis=0, keepdims=True)
+        
+        t = epoch * num_batches + i + 1
+        
+        # Update original
+        W1, m_W1, v_W1 = adam_update(W1, dW1, m_W1, v_W1, t)
+        b1, m_b1, v_b1 = adam_update(b1, db1, m_b1, v_b1, t)
+        W2, m_W2, v_W2 = adam_update(W2, dW2, m_W2, v_W2, t)
+        b2, m_b2, v_b2 = adam_update(b2, db2, m_b2, v_b2, t)
+        
+        # Update AYLA
+        W1_AYLA, m_W1_AYLA, v_W1_AYLA = adam_update(W1_AYLA, dW1_AYLA, m_W1_AYLA, v_W1_AYLA, t)
+        b1_AYLA, m_b1_AYLA, v_b1_AYLA = adam_update(b1_AYLA, db1_AYLA, m_b1_AYLA, v_b1_AYLA, t)
+        W2_AYLA, m_W2_AYLA, v_W2_AYLA = adam_update(W2_AYLA, dW2_AYLA, m_W2_AYLA, v_W2_AYLA, t)
+        b2_AYLA, m_b2_AYLA, v_b2_AYLA = adam_update(b2_AYLA, db2_AYLA, m_b2_AYLA, v_b2_AYLA, t)
+    
+    epoch_loss_orig /= num_batches
+    epoch_acc_orig /= num_batches
+    epoch_loss_AYLA /= num_batches
+    epoch_acc_AYLA /= num_batches
+    
+    # Evaluate test sets
+    def eval_test(W1_, b1_, W2_, b2_):
+        z1_test = np.dot(x_test, W1_) + b1_
+        a1_test = relu(z1_test)
+        z2_test = np.dot(a1_test, W2_) + b2_
+        y_test_pred = softmax(z2_test)
+        loss_test = cross_entropy_loss(y_test_pred, y_test_oh)
+        acc_test = accuracy(y_test_pred, y_test_oh)
+        return loss_test, acc_test
+    
+    loss_test_orig, acc_test_orig = eval_test(W1, b1, W2, b2)
+    loss_test_AYLA, acc_test_AYLA = eval_test(W1_AYLA, b1_AYLA, W2_AYLA, b2_AYLA)
+    
+    history["train_loss_orig"].append(epoch_loss_orig)
+    history["train_acc_orig"].append(epoch_acc_orig)
+    history["test_loss_orig"].append(loss_test_orig)
+    history["test_acc_orig"].append(acc_test_orig)
+    
+    history["train_loss_AYLA"].append(epoch_loss_AYLA)
+    history["train_acc_AYLA"].append(epoch_acc_AYLA)
+    history["test_loss_AYLA"].append(loss_test_AYLA)
+    history["test_acc_AYLA"].append(acc_test_AYLA)
+    
+    print(f"Epoch {epoch+1}/{epochs}")
+    print(f" Original - Train Loss: {epoch_loss_orig:.4f}, Train Acc: {epoch_acc_orig:.4f}, Test Loss: {loss_test_orig:.4f}, Test Acc: {acc_test_orig:.4f}")
+    print(f" AYLA      - Train Loss: {epoch_loss_AYLA:.4f}, Train Acc: {epoch_acc_AYLA:.4f}, Test Loss: {loss_test_AYLA:.4f}, Test Acc: {acc_test_AYLA:.4f}")
+    print("-" * 70)
 
-    for xb, yb in train_ds:
-        num_batches += 1
 
-        # Adam training
-        with tf.GradientTape() as tape:
-            y_pred_adam = model_adam(xb, training=True)
-            loss_adam = loss_fn(yb, y_pred_adam)
-        grads_adam = tape.gradient(loss_adam, model_adam.trainable_variables)
-        optimizer_adam.apply_gradients(zip(grads_adam, model_adam.trainable_variables))
 
-        # AYLA training
-        with tf.GradientTape() as tape:
-            y_pred_ayla = model_ayla(xb, training=True)
-            loss_ayla = loss_fn(yb, y_pred_ayla)
-        grads_ayla = tape.gradient(loss_ayla, model_ayla.trainable_variables)
 
-        loss_adam_np = loss_adam.numpy()
-        loss_adam_np_list.append(loss_adam_np)
+# Plot results
+epochs_range = range(1, epochs + 1)
 
-        condition = tf.abs(loss_adam_np) > 1
-        condition2 = tf.abs(loss_adam_np) < 1
-        nnp = tf.where(condition, N2, tf.where(condition2, N1, 1))
-        factor = nnp * tf.abs(loss_adam_np) ** (nnp - 1)
+plt.figure(figsize=(8,6))
 
-        grads_scaled = [g * factor for g in grads_ayla]
-        optimizer_ayla.apply_gradients(zip(grads_scaled, model_ayla.trainable_variables))
+plt.plot(epochs_range, history["train_loss_orig"], label="Train Loss Original", color='black')
+plt.plot(epochs_range, history["test_loss_orig"], label="Test Loss Original", linestyle='--', color='black')
+plt.plot(epochs_range, history["train_loss_AYLA"], label="Train Loss AYLA", color='blue')
+plt.plot(epochs_range, history["test_loss_AYLA"], label="Test Loss AYLA", linestyle='--', color='blue')
+plt.grid(linestyle='dotted')
 
-        adam_train_loss += loss_adam_np
-        ayla_train_loss += loss_ayla.numpy()
-        adam_train_acc += tf.reduce_mean(tf.cast(tf.equal(tf.argmax(y_pred_adam, axis=1), tf.argmax(yb, axis=1)), tf.float32)).numpy()
-        ayla_train_acc += tf.reduce_mean(tf.cast(tf.equal(tf.argmax(y_pred_ayla, axis=1), tf.argmax(yb, axis=1)), tf.float32)).numpy()
-
-    adam_train_loss /= num_batches
-    ayla_train_loss /= num_batches
-    adam_train_acc /= num_batches
-    ayla_train_acc /= num_batches
-
-    # Test phase
-    adam_test_loss, ayla_test_loss = 0.0, 0.0
-    adam_test_acc, ayla_test_acc = 0.0, 0.0
-    num_test_batches = 0
-
-    for xb, yb in test_ds:
-        num_test_batches += 1
-        y_pred_adam = model_adam(xb, training=False)
-        y_pred_ayla = model_ayla(xb, training=False)
-        adam_test_loss += loss_fn(yb, y_pred_adam).numpy()
-        ayla_test_loss += loss_fn(yb, y_pred_ayla).numpy()
-        adam_test_acc += tf.reduce_mean(tf.cast(tf.equal(tf.argmax(y_pred_adam, axis=1), tf.argmax(yb, axis=1)), tf.float32)).numpy()
-        ayla_test_acc += tf.reduce_mean(tf.cast(tf.equal(tf.argmax(y_pred_ayla, axis=1), tf.argmax(yb, axis=1)), tf.float32)).numpy()
-
-    adam_test_loss /= num_test_batches
-    ayla_test_loss /= num_test_batches
-    adam_test_acc /= num_test_batches
-    ayla_test_acc /= num_test_batches
-
-    # Store history
-    history['adam_train_loss'].append(adam_train_loss)
-    history['ayla_train_loss'].append(ayla_train_loss)
-    history['adam_test_loss'].append(adam_test_loss)
-    history['ayla_test_loss'].append(ayla_test_loss)
-    history['adam_train_acc'].append(adam_train_acc)
-    history['ayla_train_acc'].append(ayla_train_acc)
-    history['adam_test_acc'].append(adam_test_acc)
-    history['ayla_test_acc'].append(ayla_test_acc)
-
-    # Gradient norms
-    with tf.GradientTape() as tape:
-        y_pred_adam = model_adam(xb, training=True)
-        loss_adam = loss_fn(yb, y_pred_adam)
-    grads_adam = tape.gradient(loss_adam, model_adam.trainable_variables)
-    grad_norm_adam = tf.reduce_mean([tf.norm(g) for g in grads_adam]).numpy()
-
-    with tf.GradientTape() as tape:
-        y_pred_ayla = model_ayla(xb, training=True)
-        loss_ayla = loss_fn(yb, y_pred_ayla)
-    grads_ayla = tape.gradient(loss_ayla, model_ayla.trainable_variables)
-    grad_norm_ayla = tf.reduce_mean([tf.norm(g) for g in grads_ayla]).numpy()
-
-    # Verbose output
-    print(f"\nEpoch {epoch + 1}")
-    print(f"Adam [Train Loss: {adam_train_loss:.4f}, Test Loss: {adam_test_loss:.4f}, "
-          f"Train Acc: {adam_train_acc:.4f}, Test Acc: {adam_test_acc:.4f}, Grad Norm: {grad_norm_adam:.4f}]")
-    print(f"AYLA [Train Loss: {ayla_train_loss:.4f}, Test Loss: {ayla_test_loss:.4f}, "
-          f"Train Acc: {ayla_train_acc:.4f}, Test Acc: {ayla_test_acc:.4f}, Grad Norm: {grad_norm_ayla:.4f}, "
-          f"Factor: {factor.numpy():.4f}]")
-    print("loss used for the condition", loss_adam_np)
-
-# ------------------- Plotting ------------------- #
-plt.figure(figsize=(10, 5))
-
-# Plot Loss
-plt.subplot(1, 2, 1)
-plt.plot(history['adam_train_loss'], label='Adam Train Loss', color='black', linestyle='-')
-plt.plot(history['adam_test_loss'], label='Adam Test Loss', color='black', linestyle='--')
-plt.plot(history['ayla_train_loss'], label='AYLA Train Loss', color='blue', linestyle='-')
-plt.plot(history['ayla_test_loss'], label='AYLA Test Loss', color='blue', linestyle='--')
-plt.xlabel('Epoch')
-plt.ylabel('Loss')
-plt.title('Train and Test Loss')
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
+plt.title("Loss per Epoch")
 plt.legend()
-plt.grid(True)
-
-# Plot Accuracy
-plt.subplot(1, 2, 2)
-plt.plot(history['adam_train_acc'], label='Adam Train Acc', color='black', linestyle='-')
-plt.plot(history['adam_test_acc'], label='Adam Test Acc', color='black', linestyle='--')
-plt.plot(history['ayla_train_acc'], label='AYLA Train Acc', color='blue', linestyle='-')
-plt.plot(history['ayla_test_acc'], label='AYLA Test Acc', color='blue', linestyle='--')
-plt.xlabel('Epoch')
-plt.ylabel('Accuracy')
-plt.title('Train and Test Accuracy')
-plt.legend()
-plt.grid(True)
-
 plt.tight_layout()
-plt.savefig("mnist_comparison.png", dpi=300)
+plt.savefig("Loss.png", dpi=300)
+plt.show()
+
+plt.figure(figsize=(8,6))
+
+plt.plot(epochs_range, history["train_acc_orig"], label="Train Acc Original", color='black')
+plt.plot(epochs_range, history["test_acc_orig"], label="Test Acc Original", linestyle='--', color='black')
+plt.plot(epochs_range, history["train_acc_AYLA"], label="Train Acc AYLA", color='blue')
+plt.plot(epochs_range, history["test_acc_AYLA"], label="Test Acc AYLA", linestyle='--', color='blue')
+plt.grid(linestyle='dotted')
+
+plt.xlabel("Epoch")
+plt.ylabel("Accuracy")
+plt.title("Accuracy per Epoch")
+plt.legend()
+plt.savefig("Accu.png", dpi=300)
 plt.show()
