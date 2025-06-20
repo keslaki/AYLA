@@ -5,9 +5,22 @@ import matplotlib.pyplot as plt
 # Load MNIST data
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
 
+
+
 # Preprocess inputs
 x_train = x_train.reshape(-1, 28*28) / 255.0
 x_test = x_test.reshape(-1, 28*28) / 255.0
+
+# Add Gaussian noise
+noise_level = 0.7  # you can change this value
+np.random.seed(42)  # reproducibility
+x_train += np.random.normal(0, noise_level, x_train.shape)
+x_test += np.random.normal(0, noise_level, x_test.shape)
+
+# Clip values to stay within [0, 1] after adding noise
+x_train = np.clip(x_train, 0.0, 1.0)
+x_test = np.clip(x_test, 0.0, 1.0)
+
 
 def one_hot(labels, num_classes=10):
     return np.eye(num_classes)[labels]
@@ -56,7 +69,7 @@ def accuracy(y_pred, y_true):
     return np.mean(preds == labels)
 
 # ADAM hyperparameters
-learning_rate = 0.01
+learning_rate = 1
 beta1 = 0.9
 beta2 = 0.999
 epsilon = 1e-8
@@ -226,7 +239,6 @@ for epoch in range(epochs):
     print(f" Original - Train Loss: {epoch_loss_orig:.4f}, Train Acc: {epoch_acc_orig:.4f}, Test Loss: {loss_test_orig:.4f}, Test Acc: {acc_test_orig:.4f}")
     print(f" AYLA      - Train Loss: {epoch_loss_AYLA:.4f}, Train Acc: {epoch_acc_AYLA:.4f}, Test Loss: {loss_test_AYLA:.4f}, Test Acc: {acc_test_AYLA:.4f}")
     print("-" * 70)
-
 
 
 
