@@ -1,184 +1,168 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-# ---------- Generate Data ----------
-np.random.seed(42)
-num_points, noise = 100, 0.2
-X_input = np.linspace(-1, 3, num_points).reshape(-1, 1)
-y_true = (1/3)*X_input**4 - (4/3)*X_input**3 + X_input**2 + (2/3)*X_input - (2/3)
-y_true += np.random.normal(0, noise, (num_points, 1))
+# --- User Inputs ---
+lr = float(input("Enter learning rate (e.g. 0.01): "))
+epochs = int(input("Enter number of epochs (e.g. 100): "))
 
-# ---------- Hyperparameters ----------
+# --- Hyperparameters ---
 beta1, beta2 = 0.9, 0.999
 eps = 1e-8
-lr = 0.01
-epochs = 200
-hidden_dim = 128
 
-# ---------- Model Parameters ----------
-def init_params():
-    W1 = np.random.randn(1, hidden_dim) * 0.5
-    b1 = np.zeros((1, hidden_dim))
-    W2 = np.random.randn(hidden_dim, 1) * 0.5
-    b2 = np.zeros((1, 1))
-    return W1, b1, W2, b2
+# --- Data Generation ---
+np.random.seed(42)
+X = np.linspace(-1, 3, 100).reshape(-1, 1)
+y_true = (1/3)*X**4 - (4/3)*X**3 + X**2 + (2/3)*X - (2/3)
+y_true += np.random.normal(0, 0.2, y_true.shape)
 
-# ---------- AYLA Settings ----------
-ayla_settings = [
-    ((0.1, 0.1), 'blue', '-.', "AYLA (N1=0.1, N2=0.1)"),
-    ((0.5, 0.5), 'green', '--', "AYLA (N1=0.5, N2=0.5)"),
-    ((0.5, 1.5), 'orange', '-.', "AYLA (N1=0.5, N2=1.5)"),
-    ((1.5, 0.5), 'purple', ':', "AYLA (N1=1.5, N2=0.5)")
-]
+# --- Activation ---
+def relu(x):
+    return np.maximum(0, x)
 
-loss_results = {}
-predictions = {}
+def relu_deriv(x):
+    return (x > 0).astype(float)
 
-# ---------- Train ADAM ----------
-W1, b1, W2, b2 = init_params()
-mW1 = np.zeros_like(W1)
-mW2 = np.zeros_like(W2)
-mb1 = np.zeros_like(b1)
-mb2 = np.zeros_like(b2)
-vW1 = np.zeros_like(W1)
-vW2 = np.zeros_like(W2)
-vb1 = np.zeros_like(b1)
-vb2 = np.zeros_like(b2)
-adam_losses = []
+# --- Model Functions ---
+def forward(X, W1, b1, W2, b2):
+    Z1 = X.dot(W1) + b1
+    A1 = relu(Z1)
+    Z2 = A1.dot(W2) + b2
+    return Z1, A1, Z2
 
-for epoch in range(1, epochs+1):
-    z1 = X_input @ W1 + b1
-    a1 = np.tanh(z1)
-    y_pred = a1 @ W2 + b2
-    loss = y_pred - y_true
-    mse = np.mean(loss**2)
-    adam_losses.append(mse)
+def mse_loss(y_pred, y_true):
+    return np.mean((y_true - y_pred) ** 2)
 
-    grad = 2 * loss / num_points
-    dW2 = a1.T @ grad
-    db2 = np.sum(grad, axis=0, keepdims=True)
-    da1 = grad @ W2.T
-    dz1 = da1 * (1 - a1**2)
-    dW1 = X_input.T @ dz1
-    db1 = np.sum(dz1, axis=0, keepdims=True)
+def backward(X, y_true, Z1, A1, y_pred, W2):
+    N = X.shape[0]
+    dZ2 = 2 * (y_pred - y_true) / N
+    dW2 = A1.T.dot(dZ2)
+    db2 = np.sum(dZ2, axis=0)
+    dA1 = dZ2.dot(W2.T)
+    dZ1 = dA1 * relu_deriv(Z1)
+    dW1 = X.T.dot(dZ1)
+    db1 = np.sum(dZ1, axis=0)
+    return dW1, db1, dW2, db2
 
-    for g, m, v, p in zip([dW1, db1, dW2, db2], [mW1, mb1, mW2, mb2], [vW1, vb1, vW2, vb2], [W1, b1, W2, b2]):
-        m *= beta1
-        m += (1 - beta1) * g
-        v *= beta2
-        v += (1 - beta2) * g**2
-        m_hat = m / (1 - beta1**epoch)
-        v_hat = v / (1 - beta2**epoch)
-        p -= lr * m_hat / (np.sqrt(v_hat) + eps)
+def adam_update(param, grad, m, v, t, lr, beta1=0.9, beta2=0.999, eps=1e-8):
+    m = beta1 * m + (1 - beta1) * grad
+    v = beta2 * v + (1 - beta2) * (grad ** 2)
+    m_hat = m / (1 - beta1 ** t)
+    v_hat = v / (1 - beta2 ** t)
+    param -= lr * m_hat / (np.sqrt(v_hat) + eps)
+    return param, m, v
 
-loss_results['ADAM'] = adam_losses
-a1_grid = np.tanh(np.linspace(-1, 3, 200).reshape(-1,1) @ W1 + b1)
-predictions['ADAM'] = a1_grid @ W2 + b2
+# --- Initialization ---
+input_dim, hidden_dim, output_dim = 1, 128, 1
+np.random.seed(42)
+W1_init = np.random.randn(input_dim, hidden_dim) * 0.1
+b1_init = np.zeros(hidden_dim)
+W2_init = np.random.randn(hidden_dim, output_dim) * 0.1
+b2_init = np.zeros(output_dim)
 
-# ---------- Train AYLA Variants ----------
-for (N1, N2), color, style, label in ayla_settings:
-    W1, b1, W2, b2 = init_params()
-    mW1 = np.zeros_like(W1)
-    mW2 = np.zeros_like(W2)
-    mb1 = np.zeros_like(b1)
-    mb2 = np.zeros_like(b2)
-    vW1 = np.zeros_like(W1)
-    vW2 = np.zeros_like(W2)
-    vb1 = np.zeros_like(b1)
-    vb2 = np.zeros_like(b2)
-    ayla_losses = []
+# --- ADAM Training ---
+W1_adam, b1_adam = W1_init.copy(), b1_init.copy()
+W2_adam, b2_adam = W2_init.copy(), b2_init.copy()
+m_W1_adam = np.zeros_like(W1_adam)
+v_W1_adam = np.zeros_like(W1_adam)
+m_b1_adam = np.zeros_like(b1_adam)
+v_b1_adam = np.zeros_like(b1_adam)
+m_W2_adam = np.zeros_like(W2_adam)
+v_W2_adam = np.zeros_like(W2_adam)
+m_b2_adam = np.zeros_like(b2_adam)
+v_b2_adam = np.zeros_like(b2_adam)
+losses_adam = []
 
-    for epoch in range(1, epochs+1):
-        z1 = X_input @ W1 + b1
-        a1 = np.tanh(z1)
-        y_pred = a1 @ W2 + b2
-        loss = y_pred - y_true
-        mse = np.mean(loss**2)
-        ayla_losses.append(mse)
+for epoch in range(1, epochs + 1):
+    Z1, A1, y_pred = forward(X, W1_adam, b1_adam, W2_adam, b2_adam)
+    loss = mse_loss(y_pred, y_true)
+    losses_adam.append(loss)
+    grads = backward(X, y_true, Z1, A1, y_pred, W2_adam)
+    W1_adam, m_W1_adam, v_W1_adam = adam_update(W1_adam, grads[0], m_W1_adam, v_W1_adam, epoch, lr)
+    b1_adam, m_b1_adam, v_b1_adam = adam_update(b1_adam, grads[1], m_b1_adam, v_b1_adam, epoch, lr)
+    W2_adam, m_W2_adam, v_W2_adam = adam_update(W2_adam, grads[2], m_W2_adam, v_W2_adam, epoch, lr)
+    b2_adam, m_b2_adam, v_b2_adam = adam_update(b2_adam, grads[3], m_b2_adam, v_b2_adam, epoch, lr)
 
-        abs_loss = np.abs(mse)
-        nnp = N2 if abs_loss > 1 else N1
-        factor = nnp * abs_loss**(nnp - 1)
-        grad = 2 * factor * loss / num_points
+print(f"Final ADAM Loss: {losses_adam[-1]:.6f}")
+_, _, y_pred_adam_final = forward(X, W1_adam, b1_adam, W2_adam, b2_adam)
 
-        dW2 = a1.T @ grad
-        db2 = np.sum(grad, axis=0, keepdims=True)
-        da1 = grad @ W2.T
-        dz1 = da1 * (1 - a1**2)
-        dW1 = X_input.T @ dz1
-        db1 = np.sum(dz1, axis=0, keepdims=True)
+# --- AYLA Range Sweep ---
+N1_values = np.arange(0.2, 0.9, 0.2)
+N2_values = np.arange(1.0, 1.1, 0.5)
+ayla_results = {}
+ayla_preds = {}
 
-        for g, m, v, p in zip([dW1, db1, dW2, db2], [mW1, mb1, mW2, mb2], [vW1, vb1, vW2, vb2], [W1, b1, W2, b2]):
-            m *= beta1
-            m += (1 - beta1) * g
-            v *= beta2
-            v += (1 - beta2) * g**2
-            m_hat = m / (1 - beta1**epoch)
-            v_hat = v / (1 - beta2**epoch)
-            p -= lr * m_hat / (np.sqrt(v_hat) + eps)
+for N1 in N1_values:
+    for N2 in N2_values:
+        W1_ayla, b1_ayla = W1_init.copy(), b1_init.copy()
+        W2_ayla, b2_ayla = W2_init.copy(), b2_init.copy()
+        m_W1_ayla = np.zeros_like(W1_ayla)
+        v_W1_ayla = np.zeros_like(W1_ayla)
+        m_b1_ayla = np.zeros_like(b1_ayla)
+        v_b1_ayla = np.zeros_like(b1_ayla)
+        m_W2_ayla = np.zeros_like(W2_ayla)
+        v_W2_ayla = np.zeros_like(W2_ayla)
+        m_b2_ayla = np.zeros_like(b2_ayla)
+        v_b2_ayla = np.zeros_like(b2_ayla)
+        losses_ayla = []
 
-    loss_results[label] = ayla_losses
-    a1_grid = np.tanh(np.linspace(-1, 3, 200).reshape(-1,1) @ W1 + b1)
-    predictions[label] = a1_grid @ W2 + b2
+        for epoch in range(1, epochs + 1):
+            Z1, A1, y_pred = forward(X, W1_ayla, b1_ayla, W2_ayla, b2_ayla)
+            loss = mse_loss(y_pred, y_true)
+            losses_ayla.append(loss)
+            grads = backward(X, y_true, Z1, A1, y_pred, W2_ayla)
 
-# ---------- Plot Losses ----------
-plt.figure(figsize=(8, 5))
-#plt.xscale("log")
-plt.plot(loss_results['ADAM'], label='ADAM', color='red', linestyle='-')
-for (N1, N2), color, style, label in ayla_settings:
-    plt.plot(loss_results[label], label=label, color=color, linestyle=style)
-plt.xlabel("Epochs (log scale)")
-plt.ylabel("MSE Loss")
-plt.title("Loss vs Epochs (log x-axis)")
-plt.legend()
+            if np.abs(loss) > 1:
+                nnp = N2
+            elif np.abs(loss) < 1:
+                nnp = N1
+            else:
+                nnp = 1.0
+            factor = nnp * (np.abs(loss) ** (nnp - 1))
+            scaled_grads = [factor * g for g in grads]
+
+            W1_ayla, m_W1_ayla, v_W1_ayla = adam_update(W1_ayla, scaled_grads[0], m_W1_ayla, v_W1_ayla, epoch, lr)
+            b1_ayla, m_b1_ayla, v_b1_ayla = adam_update(b1_ayla, scaled_grads[1], m_b1_ayla, v_b1_ayla, epoch, lr)
+            W2_ayla, m_W2_ayla, v_W2_ayla = adam_update(W2_ayla, scaled_grads[2], m_W2_ayla, v_W2_ayla, epoch, lr)
+            b2_ayla, m_b2_ayla, v_b2_ayla = adam_update(b2_ayla, scaled_grads[3], m_b2_ayla, v_b2_ayla, epoch, lr)
+
+        print(f"Final AYLA Loss (N1={N1:.1f}, N2={N2:.1f}): {losses_ayla[-1]:.6f}")
+        ayla_results[(N1, N2)] = losses_ayla
+        _, _, y_pred_final = forward(X, W1_ayla, b1_ayla, W2_ayla, b2_ayla)
+        ayla_preds[(N1, N2)] = y_pred_final
+
+# --- Plot Training Loss ---
+plt.figure(figsize=(10, 7))
+plt.plot(losses_adam, label="ADAM", color='black', linewidth=2)
+cmap = plt.colormaps.get_cmap('plasma')
+colors = [cmap(i) for i in np.linspace(0, 1, len(ayla_results))]
+
+for idx, ((N1, N2), losses) in enumerate(ayla_results.items()):
+    plt.plot(losses, label=f"AYLA N1={N1:.1f}, N2={N2:.1f}", color=colors[idx])
+
+plt.title("Training Loss over Epochs")
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
+plt.legend(fontsize='small')
 plt.grid(True)
 plt.tight_layout()
-plt.savefig("LogLoss.png", dpi=300)
+plt.savefig("Losscurve.png", dpi=300)
+
 plt.show()
 
-# ---------- Plot Predictions ----------
-plt.figure(figsize=(8, 5))
-plt.scatter(X_input, y_true, label='True Data', color='grey', alpha=0.5)
-X_grid = np.linspace(-1, 3, 200).reshape(-1,1)
-plt.plot(X_grid, predictions['ADAM'], label='ADAM', color='red', linestyle='-')
-for (_, _, _, label), color, style in zip(ayla_settings, [s[1] for s in ayla_settings], [s[2] for s in ayla_settings]):
-    plt.plot(X_grid, predictions[label], label=label, color=color, linestyle=style)
+# --- Plot Fits ---
+plt.figure(figsize=(10, 7))
+plt.scatter(X, y_true, label="True Data", color='gray', alpha=0.6)
+plt.plot(X, y_pred_adam_final, label="ADAM", color='black', linewidth=2)
+
+for idx, ((N1, N2), y_pred) in enumerate(ayla_preds.items()):
+    plt.plot(X, y_pred, label=f"AYLA N1={N1:.1f}, N2={N2:.1f}", color=colors[idx])
+
+plt.title("Fitted Curve Comparison")
 plt.xlabel("X")
-plt.ylabel("Predicted y")
-plt.title("Prediction Comparison")
-plt.legend()
+plt.ylabel("y_pred")
+plt.legend(fontsize='small')
 plt.grid(True)
 plt.tight_layout()
-plt.savefig("PredictionComparison.png", dpi=300)
-plt.show()
+plt.savefig("fittedcurve.png", dpi=300)
 
-# ---------- Final Losses ----------
-print("\nFinal MSE Losses:")
-for label, losses in loss_results.items():
-    print(f"{label:25}: {losses[-1]:.6f}")
-
-
-# ---------- Plot First N Epochs (Custom) ----------
-
-first_elements = 20  # Set how many elements to show here
-
-plt.figure(figsize=(8, 5))
-
-# ADAM
-plt.plot(range(1, first_elements + 1), loss_results['ADAM'][:first_elements],
-         label='ADAM', color='red', linestyle='-')
-
-# AYLA Variants
-for (_, _, _, label), color, style in zip(ayla_settings, [s[1] for s in ayla_settings], [s[2] for s in ayla_settings]):
-    plt.plot(range(1, first_elements + 1), loss_results[label][:first_elements],
-             label=label, color=color, linestyle=style)
-
-plt.xlabel(f"Epochs (First {first_elements})")
-plt.ylabel("MSE Loss")
-plt.title(f"Loss (First {first_elements} Epochs)")
-plt.xticks(range(1, first_elements + 1, max(1, first_elements // 10)))
-plt.legend()
-plt.grid(True)
-plt.tight_layout()
-plt.savefig(f"First{first_elements}Epochs.png", dpi=300)
 plt.show()
