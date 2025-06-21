@@ -126,7 +126,7 @@ for epoch in range(epochs):
         dW1 = np.dot(X_batch.T, dz1)
         db1 = np.sum(dz1, axis=0, keepdims=True)
 
-        if abs(loss_updated) > 1:
+        if abs(loss_u) > 1:
             nnp = N2
         else:
             nnp = N1
@@ -134,27 +134,31 @@ for epoch in range(epochs):
        
         
         # Ayla model
-        z1_A = np.dot(X_batch, W1_A) + b1_A
-        a1_A = relu(z1_A)
-        z2_A = np.dot(a1_A, W2_A) + b2_A
-        y_pred_A = softmax(z2_A)        
-        dz2_A = factor * (y_pred_A - y_batch) / m
-        dW2_A = np.dot(a1_u.T, dz2_A)
-        db2_A = np.sum(dz2_A, axis=0, keepdims=True)
-        da1_A = np.dot(dz2_A, W2_AYLA.T)
-        dz1_A = da1_A * relu_derivative(z1_A)
-        dW1_A = np.dot(X_batch.T, dz1_A)
-        db1_A = np.sum(dz1_A, axis=0, keepdims=True)
+        z1_AYLA = np.dot(X_batch, W1_AYLA) + b1_AYLA
+        a1_AYLA = relu(z1_AYLA)
+        z2_AYLA = np.dot(a1_AYLA, W2_AYLA) + b2_AYLA
+        y_pred_AYLA = softmax(z2_AYLA)        
+        dz2_AYLA = factor * (y_pred_AYLA - y_batch) / m
+        dW2_AYLA = np.dot(a1_u.T, dz2_AYLA)
+        db2_AYLA = np.sum(dz2_AYLA, axis=0, keepdims=True)
+        da1_AYLA = np.dot(dz2_AYLA, W2_AYLA.T)
+        dz1_AYLA = da1_AYLA * relu_derivative(z1_AYLA)
+        dW1_AYLA = np.dot(X_batch.T, dz1_AYLA)
+        db1_AYLA = np.sum(dz1_AYLA, axis=0, keepdims=True)
+        
+        
+        
+        print(loss , loss_u)
 
         W1 -= learning_rate * dW1
         b1 -= learning_rate * db1
         W2 -= learning_rate * dW2
         b2 -= learning_rate * db2
 
-        W1_AYLA -= learning_rate * dW1_A
-        b1_AYLA -= learning_rate * db1_A
-        W2_AYLA -= learning_rate * dW2_A
-        b2_AYLA -= learning_rate * db2_A
+        W1_AYLA -= learning_rate * dW1_AYLA
+        b1_AYLA -= learning_rate * db1_AYLA
+        W2_AYLA -= learning_rate * dW2_AYLA
+        b2_AYLA -= learning_rate * db2_AYLA
 
         W1_updated -= learning_rate * dW1_u
         b1_updated -= learning_rate * db1_u
