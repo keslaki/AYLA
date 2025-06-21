@@ -1,3 +1,26 @@
+import numpy as np
+from tensorflow.keras.datasets import cifar100
+import matplotlib.pyplot as plt
+
+# ----------------------- Load and Preprocess Data ----------------------- #
+(x_train, y_train), (x_test, y_test) = cifar100.load_data()
+x_train = x_train.reshape(-1, 32*32*3) / 255.0
+x_test = x_test.reshape(-1, 32*32*3) / 255.0
+
+# Add Gaussian noise
+noise_level = 0
+np.random.seed(42)
+x_train += np.random.normal(0, noise_level, x_train.shape)
+x_test += np.random.normal(0, noise_level, x_test.shape)
+x_train = np.clip(x_train, 0.0, 1.0)
+x_test = np.clip(x_test, 0.0, 1.0)
+
+def one_hot(labels, num_classes=100):
+    return np.eye(num_classes)[labels.flatten()]
+
+y_train_oh = one_hot(y_train)
+y_test_oh = one_hot(y_test)
+
 
 # ----------------------- Architecture & Initialization ----------------------- #
 input_size = 3072  # 32*32*3
