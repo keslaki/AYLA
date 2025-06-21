@@ -126,12 +126,23 @@ for epoch in range(epochs):
         dW1 = np.dot(X_batch.T, dz1)
         db1 = np.sum(dz1, axis=0, keepdims=True)
 
-        factor = N2 * loss_u**(N2 - 1) if abs(loss_u) > 1 else N1 * loss_u**(N1 - 1)
-        dz2_A = factor * (y_pred_u - y_batch) / m
+        if abs(loss_updated) > 1:
+            nnp = N2
+        else:
+            nnp = N1
+        factor = nnp * (abs(loss_u)) ** (nnp - 1)
+       
+        
+        # Ayla model
+        z1_A = np.dot(X_batch, W1_A) + b1_A
+        a1_A = relu(z1_A)
+        z2_A = np.dot(a1_A, W2_A) + b2_A
+        y_pred_A = softmax(z2_A)        
+        dz2_A = factor * (y_pred_A - y_batch) / m
         dW2_A = np.dot(a1_u.T, dz2_A)
         db2_A = np.sum(dz2_A, axis=0, keepdims=True)
         da1_A = np.dot(dz2_A, W2_AYLA.T)
-        dz1_A = da1_A * relu_derivative(z1_u)
+        dz1_A = da1_A * relu_derivative(z1_A)
         dW1_A = np.dot(X_batch.T, dz1_A)
         db1_A = np.sum(dz1_A, axis=0, keepdims=True)
 
