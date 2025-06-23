@@ -71,7 +71,7 @@ def plot_paths(history):
     plt.legend(loc='lower right', fontsize=11, frameon=True, edgecolor='black')
     plt.grid(True, linestyle='dotted', color='gray')
     plt.tight_layout()
-    plt.savefig('ayla_sgd_poly_1.png', dpi=1000, bbox_inches='tight')
+    plt.savefig('ayla_sgd_poly_1d.tif', dpi=1000, bbox_inches='tight')
     plt.show()
 
 # Plot loss landscape and steps
@@ -91,7 +91,7 @@ def plot_loss_and_steps(history, N1, N2):
     plt.legend(loc='upper right', fontsize=10, frameon=True, edgecolor='black')
     plt.grid(True, linestyle='dotted', color='gray')
     plt.tight_layout()
-    plt.savefig('ayla_sgd_poly_2.png', dpi=1000, bbox_inches='tight')
+    plt.savefig('ayla_sgd_poly_2.tif', dpi=1000, bbox_inches='tight')
     plt.show()
 
 # Hyperparameters
@@ -123,7 +123,7 @@ def plot_step_sizes(history):
     plt.legend(loc='upper right', fontsize=10, frameon=True, edgecolor='black')
     plt.grid(True, linestyle='dotted', color='gray')
     plt.tight_layout()
-    plt.savefig('ayla_sgd_step_sizes.png', dpi=1000, bbox_inches='tight')
+    plt.savefig('ayla_sgd_step_sizes.tif', dpi=1000, bbox_inches='tight')
     plt.show()
 
 plot_step_sizes(history)
